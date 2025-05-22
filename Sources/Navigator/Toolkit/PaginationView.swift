@@ -78,6 +78,11 @@ final class PaginationView: UIView, Loggable {
         loadedViews[currentIndex]
     }
 
+    /// Returns whether the current page view is the last one.
+    var isLastView: Bool {
+        currentView === orderedViews.last
+    }
+
     /// Loaded page views in reading order.
     private var orderedViews: [UIView & PageView] {
         var orderedViews = loadedViews
