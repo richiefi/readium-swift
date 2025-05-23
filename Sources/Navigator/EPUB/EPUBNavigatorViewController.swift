@@ -509,6 +509,22 @@ open class EPUBNavigatorViewController: InputObservableViewController,
         return fulfill(linkList: toc)
     }
 
+    private func canGoForward(to direction: EPUBSpreadView.Direction) -> Bool {
+        guard let paginationView = paginationView else {
+            return false
+        }
+
+        guard paginationView.isLastView else {
+            return true
+        }
+
+        if let spreadView = paginationView.currentView as? EPUBSpreadView {
+            return spreadView.canGo(to: direction)
+        }
+
+        return false
+    }
+
     /// Goes to the next or previous page in the given scroll direction.
     private func go(to direction: EPUBSpreadView.Direction, options: NavigatorGoOptions) async -> Bool {
         guard
@@ -750,6 +766,18 @@ open class EPUBNavigatorViewController: InputObservableViewController,
             return false
         }
         return await go(to: locator, options: options)
+    }
+
+    public var isLastPage: Bool {
+        let forwardDirection: EPUBSpreadView.Direction = {
+            switch viewModel.readingProgression {
+            case .ltr:
+                return .right
+            case .rtl:
+                return .left
+            }
+        }()
+        return !canGoForward(to: forwardDirection)
     }
 
     @discardableResult
