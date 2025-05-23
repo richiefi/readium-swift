@@ -195,6 +195,32 @@ final class EPUBReflowableSpreadView: EPUBSpreadView {
         return true
     }
 
+    override func canGo(to direction: EPUBSpreadView.Direction) -> Bool {
+        guard !viewModel.scroll else {
+            return super.canGo(to: direction)
+        }
+
+        let factor: CGFloat = {
+            switch direction {
+            case .left:
+                return -1
+            case .right:
+                return 1
+            }
+        }()
+
+        let offsetX = scrollView.bounds.width * factor
+        var newOffset = scrollView.contentOffset
+        newOffset.x += offsetX
+        let rounded = round(newOffset.x / offsetX) * offsetX
+        newOffset.x = rounded
+        guard 0 ..< scrollView.contentSize.width ~= newOffset.x else {
+            return false
+        }
+
+        return true
+    }
+
     // Location to scroll to in the resource once the page is loaded.
     private var pendingLocation: PageLocation = .start
 
