@@ -137,8 +137,12 @@ public extension RelativeURL {
     ///
     /// As a workaround, we assume the HREFs are valid percent-encoded URLs,
     /// and fallback to decoded paths if we can't parse the URL.
+    ///
+    /// The decoded-path fallback first strips any existing percent-encoding
+    /// to avoid double-encoding. This handles the common case of EPUBs with
+    /// mixed encoding (e.g. literal `ä` alongside `%28` for `(`).
     init?(epubHREF: String) {
-        guard let uri = RelativeURL(string: epubHREF) ?? RelativeURL(path: epubHREF) else {
+        guard let uri = RelativeURL(string: epubHREF) ?? RelativeURL(path: epubHREF.removingPercentEncoding ?? epubHREF) else {
             return nil
         }
         self = uri
