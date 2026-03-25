@@ -30,7 +30,7 @@ final class MinizipContainer: Container, Loggable {
             repeat {
                 switch try zipFile.entryMetadataAtCurrentOffset() {
                 case let .file(path, length: length, compressedLength: compressedLength):
-                    if let url = RelativeURL(path: path) {
+                    if let url = RelativeURL(path: path)?.normalized {
                         entries[url] = MinizipEntryMetadata(length: length, compressedLength: compressedLength)
                     }
                 case .directory:

@@ -31,10 +31,14 @@ public extension URLProtocol {
 
     /// Normalizes the URL using a subset of the RFC-3986 rules.
     /// https://datatracker.ietf.org/doc/html/rfc3986#section-6
+    ///
+    /// Also applies Unicode NFC normalization to the path to handle
+    /// mismatches between ZIP entry names (which may use NFD) and
+    /// manifest hrefs (typically NFC).
     var normalized: Self {
         Self(url: url.copy {
             $0.scheme = $0.scheme?.lowercased()
-            $0.path = path.normalizedPath
+            $0.path = path.normalizedPath.precomposedStringWithCanonicalMapping
         }!)!
     }
 
