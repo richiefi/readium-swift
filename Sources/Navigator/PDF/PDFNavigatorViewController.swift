@@ -9,7 +9,9 @@ import PDFKit
 import ReadiumShared
 import UIKit
 
-public protocol PDFNavigatorDelegate: VisualNavigatorDelegate, SelectableNavigatorDelegate {
+public protocol PDFNavigatorDelegate: VisualNavigatorDelegate,
+    SelectableNavigatorDelegate, ViewportObservingNavigatorDelegate
+{
     /// Called after the `PDFDocumentView` is created.
     ///
     /// Override to customize its behavior.
@@ -23,7 +25,8 @@ public extension PDFNavigatorDelegate {
 /// A view controller used to render a PDF `Publication`.
 open class PDFNavigatorViewController:
     InputObservableViewController,
-    VisualNavigator, SelectableNavigator, Configurable, Loggable
+    VisualNavigator, ViewportObservingNavigator, SelectableNavigator,
+    Configurable, Loggable
 {
     public struct Configuration {
         /// Initial set of setting preferences.
@@ -239,6 +242,7 @@ open class PDFNavigatorViewController:
         }
 
         currentResourceIndex = nil
+        viewport = nil
         let pdfView = PDFDocumentView(
             frame: view.bounds,
             editingActions: editingActions,
@@ -392,10 +396,9 @@ open class PDFNavigatorViewController:
     }
 
     @objc private func pageDidChange() {
-        guard let locator = currentPosition else {
-            return
+        if let locator = currentPosition {
+            delegate?.navigator(self, locationDidChange: locator)
         }
-        delegate?.navigator(self, locationDidChange: locator)
     }
 
     @objc private func visiblePagesDidChange() {
@@ -405,6 +408,8 @@ open class PDFNavigatorViewController:
         if !settings.scroll {
             updateScaleFactors(zoomToFit: true)
         }
+
+        viewport = computeLocatorAndViewport().viewport
     }
 
     @discardableResult
@@ -547,17 +552,16 @@ open class PDFNavigatorViewController:
             let pdfView = pdfView,
             let currentResourceIndex = currentResourceIndex,
             let pageNumber = pdfView.currentPage?.pageRef?.pageNumber,
-            publication.readingOrder.indices.contains(currentResourceIndex),
             let positionsByReadingOrder = positionsByReadingOrder
         else {
             return nil
         }
-        let positions = positionsByReadingOrder[currentResourceIndex]
-        guard positions.count > 0, 1 ... positions.count ~= pageNumber else {
-            return nil
-        }
-
-        return positions[pageNumber - 1]
+        return PDFViewportCalculator.computeLocator(
+            currentPageNumber: pageNumber,
+            currentResourceIndex: currentResourceIndex,
+            readingOrder: publication.readingOrder,
+            positionsByReadingOrder: positionsByReadingOrder
+        )
     }
 
     // MARK: - Configurable
@@ -581,6 +585,52 @@ open class PDFNavigatorViewController:
             metadata: publication.metadata,
             defaults: config.defaults
         )
+    }
+
+    // MARK: - ViewportObservingNavigator
+
+    public private(set) var viewport: NavigatorViewport? {
+        didSet {
+            guard oldValue != viewport else { return }
+            delegate?.navigator(self, viewportDidChange: viewport)
+        }
+    }
+
+    private func computeLocatorAndViewport() -> (locator: Locator?, viewport: NavigatorViewport?) {
+        guard
+            let pdfView = pdfView,
+            let currentResourceIndex = currentResourceIndex,
+            let positionsByReadingOrder = positionsByReadingOrder,
+            let document = pdfView.document,
+            let currentPageNumber = pdfView.currentPage?.pageRef?.pageNumber
+        else {
+            return (nil, nil)
+        }
+
+        let visiblePageNumbers = extractVisiblePageNumbers(from: pdfView) ?? (currentPageNumber ... currentPageNumber)
+
+        return PDFViewportCalculator.compute(
+            currentPageNumber: currentPageNumber,
+            visiblePageNumbers: visiblePageNumbers,
+            pageCount: document.pageCount,
+            currentResourceIndex: currentResourceIndex,
+            readingOrder: publication.readingOrder,
+            positionsByReadingOrder: positionsByReadingOrder
+        )
+    }
+
+    private func extractVisiblePageNumbers(from pdfView: PDFDocumentView) -> ClosedRange<Int>? {
+        let sorted = pdfView.visiblePages
+            .compactMap { $0.pageRef?.pageNumber }
+            .sorted()
+        guard
+            let first = sorted.first,
+            let last = sorted.last
+        else {
+            return nil
+        }
+
+        return first ... last
     }
 
     // MARK: - SelectableNavigator
