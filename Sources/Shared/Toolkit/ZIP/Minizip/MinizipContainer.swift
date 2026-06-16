@@ -31,7 +31,7 @@ final class MinizipContainer: Container, Loggable {
                 switch try zipFile.entryMetadataAtCurrentOffset() {
                 case let .file(path, length: length, compressedLength: compressedLength):
                     if let url = RelativeURL(path: path)?.normalized {
-                        entries[url] = MinizipEntryMetadata(length: length, compressedLength: compressedLength)
+                        entries[url] = MinizipEntryMetadata(entryPath: path, length: length, compressedLength: compressedLength)
                     }
                 case .directory:
                     // Directories are ignored
@@ -68,11 +68,19 @@ final class MinizipContainer: Container, Loggable {
         else {
             return nil
         }
-        return MinizipResource(file: file, entryPath: url.path, metadata: metadata)
+        // Read using the original entry path stored in the archive, not the
+        // normalized lookup key: `unzLocateFile` matches entry names byte-for-byte,
+        // so a normalized (e.g. NFC) path fails to locate an archive that stores
+        // its names in a different Unicode normalization form (e.g. NFD).
+        return MinizipResource(file: file, entryPath: metadata.entryPath, metadata: metadata)
     }
 }
 
 private struct MinizipEntryMetadata {
+    /// The original entry path as stored in the ZIP archive. Used to locate the
+    /// entry for reading; must preserve the archive's raw name (including its
+    /// Unicode normalization form) rather than the normalized lookup key.
+    let entryPath: String
     let length: UInt64
     let compressedLength: UInt64?
 }

@@ -86,6 +86,22 @@ class MinizipContainerTests: XCTestCase {
         )
     }
 
+    /// The archive stores the entry name in NFD (decomposed) form, as produced
+    /// e.g. by macOS filesystems, while manifest hrefs are typically NFC
+    /// (precomposed). Looking up by the NFC form must still locate and read the
+    /// NFD entry: the lookup key is normalized for matching, but reading must use
+    /// the archive's original raw name so `unzLocateFile` can byte-match it.
+    func testReadEntryWithDifferentUnicodeNormalization() async throws {
+        let container = try await container(for: "nfd-entry.zip")
+        let nfcName = "minä.txt".precomposedStringWithCanonicalMapping
+        let entry = try XCTUnwrap(try container[XCTUnwrap(AnyURL(path: nfcName))])
+        let data = try await entry.read().get()
+        XCTAssertEqual(
+            String(data: data, encoding: .utf8),
+            "I'm inside\nthe ZIP.\n"
+        )
+    }
+
     func testReadUncompressedRange() async throws {
         // FIXME: It looks like unzseek64 starts from the beginning of the file header, instead of the content. Reading a first byte solves this but then Minizip crashes randomly... Note that this only fails in the test case. I didn't see actual issues in LCPDF or videos embedded in EPUBs.
         let container = try await container(for: "test.zip")
